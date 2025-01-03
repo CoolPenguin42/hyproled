@@ -43,7 +43,7 @@ hyproled -s -a 0:0:2880:50
 Each time this command is executed it swaps the disabled pixels. A great way to prevent burn in is to swap in an hourly cronjob.
 
 ```bash
- 0 * * * *  hyproled -s -a 0:0:2880:50
+ 0 * * * * hyprctl --instance 0 dispatch -- exec "hyproled -s -a 0:0:2880:50"
 ```
 
 Check the [examples](examples) for a more advanced burn in prevention script
