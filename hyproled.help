@@ -1,0 +1,18 @@
+Usage: hyproled [OPTION]... [off]
+
+Hyprland shader utility to prevent OLED burn-in.
+Disables every other pixel.
+
+version: 0.2.0
+
+Options:
+  -a x:y:w:h  Set the active area (useful for bars). [Default: entire screen]
+  -i          Invert the area (useful for window or popup focus effects).
+  -s          Shift the lit pixels (run periodically to prevent burn-in).
+  -m ID       OLED monitor ID (see `hyprctl monitors`). [Default: 0]
+  -c color    Set the color [Format: 0.0,0.0,0.0,1.0]
+  -h          Show this help message.
+
+Arguments:
+  off         Disable hyproled
+  last        Show the arguments used in the last execution

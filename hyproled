@@ -1,48 +1,69 @@
 #!/bin/bash
 
-swap=false
+shift=false
 toggle=false
 invert=false
 monitor=0
 
 fill_color='0.0, 0.0, 0.0, 1.0'
 
-# debug
-# fill_color='255.0, 255.0, 255.0, 1.0'
-
+last_args_file="/dev/shm/last_hyproled_args"
+help_file="$(dirname "$0")/hyproled.help"
+touch $last_args_file
 
 show_help() {
-  echo "Usage: $(basename $0) [OPTION]... [off]"
-  echo ""
-  echo "Hyprland shader utility to prevent OLED burn in."
-  echo "Disables every other pixel"
-  echo ""
-  echo "version: 0.1.0"
-  echo ""
-  echo "Options:"
-  echo "  -a x:y:w:h  The effective area. Useful for bars. [Default: The entire screen]"
-  echo "  -i          Inverts the area. Useful for focus effect of a window or popup."
-  echo "  -s          Swap lit pixels. Useful to prevent burn in, when called periodically."
-  echo "  -m ID       Id of your oled monitor (hyprctl monitors). [Default: 0]."
-  echo "  -h          Display this help message."
-  echo ""
-  echo "Argument:"
-  echo "  off         Disables hyproled"
+  if [[ -f "$help_file" ]]; then
+    cat "$help_file"
+  else
+    echo "Help file not found: $help_file"
+  fi
 }
+
+# If help file doesn't exist, create a default one
+if [[ ! -f "$help_file" ]]; then
+cat > "$help_file" <<EOF
+Usage: hyproled [OPTION]... [off]
+
+Hyprland shader utility to prevent OLED burn-in.
+Disables every other pixel.
+
+version: 0.2.0
+
+Options:
+  -a x:y:w:h  Set the active area (useful for bars). [Default: entire screen]
+  -i          Invert the area (useful for window or popup focus effects).
+  -s          Shift the lit pixels (run periodically to prevent burn-in).
+  -m ID       OLED monitor ID (see \`hyprctl monitors\`). [Default: 0]
+  -c color    Set the color [Format: 0.0,0.0,0.0,1.0]
+  -h          Show this help message.
+
+Arguments:
+  off         Disable hyproled
+  last        Show the arguments used in the last execution
+EOF
+fi
 
 if [[ $1 == 'off' ]]; then
   hyproled -a 0:0:0:0
   exit 0;
 fi
 
+if [[ $1 == 'last' ]]; then
+  echo $(cat $last_args_file)
+  exit 0;
+fi
+
 # Parse command-line options
-while getopts ":a:ism:h" opt; do
+while getopts ":ac:ism:h" opt; do
   case ${opt} in
     a )
       area=$OPTARG
       ;;
+    c )
+      fill_color=$OPTARG
+      ;;
     s )
-      swap=true
+      shift=true
       ;;
     i )
       invert=true
@@ -136,13 +157,16 @@ shader_template="${shader_template//\{\{setter\}\}/$setter}"
 color="vec4 color = isEvenPixel ? originalColor : vec4($fill_color);"
 tmp_shader_name="hyproled_shader.glsl"
 
-# swap
-if $swap && $(hyprctl getoption decoration:screen_shader | grep -q $tmp_shader_name); then
-  tmp_shader_name="hyproled_shader_swapped.glsl"
+# shift
+if $shift && $(hyprctl getoption decoration:screen_shader | grep -q $tmp_shader_name); then
+  tmp_shader_name="hyproled_shader_shifted.glsl"
   color="vec4 color = isEvenPixel ? vec4($fill_color) : originalColor;"
 fi
 shader_template="${shader_template//\{\{color\}\}/$color}"
 
+
+# store last args
+echo $@ > "$last_args_file"
 
 # write shader to ram
 temp_file="/dev/shm/$tmp_shader_name"
