@@ -6,17 +6,19 @@ show_help(){
   cat <<EOF
 Usage: $(basename $0) [OPTION]... [off]
 
-Hyprland OLED dimmer shader (v0.2.2 – GLES3 compatible)
+Hyprland shader utility to prevent OLED burn in.
+
+version: 0.1.1
 
 Options:
-  -a x:y:w:h   Apply only in region
-  -i           Invert region (external area dims)
-  -s           Swap pixel phase (toggle pattern)
-  -m ID        Monitor ID (hyprctl monitors). Default 0
-  -h           Show help
+  -a x:y:w:h  The effective area. Useful for bars. [Default: The entire screen]
+  -i          Inverts the area. Useful for focus effect of a window or popup.
+  -s          Swap lit pixels. Useful to prevent burn in, when called periodically.
+  -m ID       Id of your oled monitor (hyprctl monitors). [Default: 0]
+  -h          Display this help message.
 
 Argument:
-  off          Disable shader
+  off         Disable hyproled
 EOF
 }
 
@@ -38,7 +40,7 @@ done
 shift $((OPTIND-1))
 
 # Base shader header
-cat > /dev/shm/holed_shader.glsl <<EOF
+cat > /dev/shm/hyproled_shader.glsl <<EOF
 #version 300 es
 precision highp float;
 in vec2 v_texcoord;
@@ -54,28 +56,28 @@ EOF
 
 # Setup pixel color
 if $swap; then
-  echo "  vec4 pixel = even ? vec4(${fill_color}) : orig;" >> /dev/shm/holed_shader.glsl
+  echo "  vec4 pixel = even ? vec4(${fill_color}) : orig;" >> /dev/shm/hyproled_shader.glsl
 else
-  echo "  vec4 pixel = even ? orig : vec4(${fill_color});" >> /dev/shm/holed_shader.glsl
+  echo "  vec4 pixel = even ? orig : vec4(${fill_color});" >> /dev/shm/hyproled_shader.glsl
 fi
 
 # Region logic
 if [[ -n $area ]]; then
   if [[ $area =~ ^([0-9]+):([0-9]+):([0-9]+):([0-9]+)$ ]]; then
     read x y w h <<< "${BASH_REMATCH[*]:1:4}"
-    echo "  bool inRegion = (fc.x >= ${x}.0 && fc.x <= (${x}.0+${w}.0) && fc.y >= ${y}.0 && fc.y <= (${y}.0+${h}.0));" >> /dev/shm/holed_shader.glsl
+    echo "  bool inRegion = (fc.x >= ${x}.0 && fc.x <= (${x}.0+${w}.0) && fc.y >= ${y}.0 && fc.y <= (${y}.0+${h}.0));" >> /dev/shm/hyproled_shader.glsl
     if $invert; then
-      echo "  fragColor = inRegion ? orig : pixel;" >> /dev/shm/holed_shader.glsl
+      echo "  fragColor = inRegion ? orig : pixel;" >> /dev/shm/hyproled_shader.glsl
     else
-      echo "  fragColor = inRegion ? pixel : orig;" >> /dev/shm/holed_shader.glsl
+      echo "  fragColor = inRegion ? pixel : orig;" >> /dev/shm/hyproled_shader.glsl
     fi
   else
     echo "Invalid area format, use x:y:w:h" >&2; exit 1
   fi
 else
-  echo "  fragColor = pixel;" >> /dev/shm/holed_shader.glsl
+  echo "  fragColor = pixel;" >> /dev/shm/hyproled_shader.glsl
 fi
 
-echo "}" >> /dev/shm/holed_shader.glsl
+echo "}" >> /dev/shm/hyproled_shader.glsl
 
-hyprctl keyword decoration:screen_shader /dev/shm/holed_shader.glsl
+hyprctl keyword decoration:screen_shader /dev/shm/hyproled_shader.glsl
