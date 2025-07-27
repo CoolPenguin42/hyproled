@@ -17,7 +17,7 @@ Options:
   -h          Display this help message.
 
 Argument:
-  off         Disables hyproled
+  off         Disable hyproled
 ```
 
 ## Install
@@ -50,7 +50,7 @@ Check the [examples](examples) for a more advanced burn in prevention script
 
 ## Disable in fullscreen apps
 
-Especially when limiting hyproled to a specific area, it might make sense to disable the shader in fullscreen mode. 
+Especially when limiting hyproled to a specific area, it might make sense to disable the shader in fullscreen mode.
 
 ```bash
 #!/usr/bin/env bash
