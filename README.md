@@ -12,7 +12,7 @@ Usage: hyproled [OPTION]... [off]
 Options:
   -a x:y:w:h  The effective area. Useful for bars. [Default: The entire screen]
   -i          Inverts the area. Useful for focus effect of a window or popup.
-  -s          Swap lit pixels. Useful to prevent burn in, when called periodically.
+  -s          Shift lit pixels. Useful to prevent burn in, when called periodically.
   -m ID       Id of your oled monitor (hyprctl monitors). [Default: 0]
   -h          Display this help message.
 
@@ -40,7 +40,7 @@ Since the effect reduces the overall brightness, it might make sense to apply th
 hyproled -s -a 0:0:2880:50
 ```
 
-Each time this command is executed it swaps the disabled pixels. A great way to prevent burn in is to swap in an hourly cronjob.
+Each time this command is executed it shifts the disabled pixels. A great way to prevent burn in is to call hyproled in an hourly cronjob.
 
 ```bash
  0 * * * * hyprctl --instance 0 dispatch -- exec "hyproled -s -a 0:0:2880:50"
