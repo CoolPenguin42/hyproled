@@ -1,6 +1,9 @@
 #!/bin/bash
-swap=false; invert=false; monitor=0
+shift=false; invert=false; monitor=0
 fill_color='0.0,0.0,0.0,1.0'
+
+STATE_FILE="/tmp/hyproled_shift.state"
+SHADER_FILE="/dev/shm/hyproled_shader.glsl"
 
 show_help(){
   cat <<EOF
@@ -8,12 +11,12 @@ Usage: $(basename $0) [OPTION]... [off]
 
 Hyprland shader utility to prevent OLED burn in.
 
-version: 0.1.1
+version: 0.1.2
 
 Options:
   -a x:y:w:h  The effective area. Useful for bars. [Default: The entire screen]
   -i          Inverts the area. Useful for focus effect of a window or popup.
-  -s          Swap lit pixels. Useful to prevent burn in, when called periodically.
+  -s          Shift lit pixels. Useful to prevent burn in, when called periodically.
   -m ID       Id of your oled monitor (hyprctl monitors). [Default: 0]
   -h          Display this help message.
 
@@ -30,7 +33,7 @@ fi
 while getopts ":a:ism:h" opt; do
   case $opt in
     a) area=$OPTARG ;;
-    s) swap=true ;;
+    s) shift=true ;;
     i) invert=true ;;
     m) monitor=$OPTARG ;;
     h) show_help; exit ;;
@@ -39,8 +42,31 @@ while getopts ":a:ism:h" opt; do
 done
 shift $((OPTIND-1))
 
+
+# Only use shift if -s is passed
+if $shift; then
+  # Read last state, default to 0
+  if [[ -f $STATE_FILE ]]; then
+    last_shift=$(<"$STATE_FILE")
+  else
+    last_shift=0
+  fi
+  # Toggle state
+  if [[ $last_shift -eq 0 ]]; then
+    shift_offset=1
+    echo 1 > "$STATE_FILE"
+  else
+    shift_offset=0
+    echo 0 > "$STATE_FILE"
+  fi
+else
+  shift_offset=0
+fi
+
+
+
 # Base shader header
-cat > /dev/shm/hyproled_shader.glsl <<EOF
+cat > "$SHADER_FILE" <<EOF
 #version 300 es
 precision highp float;
 in vec2 v_texcoord;
@@ -51,33 +77,29 @@ void main(){
   vec4 orig = texture(tex, v_texcoord);
   if(wl_output != ${monitor}) { fragColor = orig; return; }
   vec2 fc = gl_FragCoord.xy;
-  bool even = mod(fc.x + fc.y,2.0)==0.0;
+  bool even = mod(fc.x + fc.y + float(${shift_offset}),2.0)==0.0;
 EOF
 
-# Setup pixel color
-if $swap; then
-  echo "  vec4 pixel = even ? vec4(${fill_color}) : orig;" >> /dev/shm/hyproled_shader.glsl
-else
-  echo "  vec4 pixel = even ? orig : vec4(${fill_color});" >> /dev/shm/hyproled_shader.glsl
-fi
+echo "  vec4 pixel = even ? orig : vec4(${fill_color});" >> "$SHADER_FILE"
 
 # Region logic
 if [[ -n $area ]]; then
   if [[ $area =~ ^([0-9]+):([0-9]+):([0-9]+):([0-9]+)$ ]]; then
     read x y w h <<< "${BASH_REMATCH[*]:1:4}"
-    echo "  bool inRegion = (fc.x >= ${x}.0 && fc.x <= (${x}.0+${w}.0) && fc.y >= ${y}.0 && fc.y <= (${y}.0+${h}.0));" >> /dev/shm/hyproled_shader.glsl
+    echo "  bool inRegion = (fc.x >= ${x}.0 && fc.x <= (${x}.0+${w}.0) && fc.y >= ${y}.0 && fc.y <= (${y}.0+${h}.0));" >> "$SHADER_FILE"
     if $invert; then
-      echo "  fragColor = inRegion ? orig : pixel;" >> /dev/shm/hyproled_shader.glsl
+      echo "  fragColor = inRegion ? orig : pixel;" >> "$SHADER_FILE"
     else
-      echo "  fragColor = inRegion ? pixel : orig;" >> /dev/shm/hyproled_shader.glsl
+      echo "  fragColor = inRegion ? pixel : orig;" >> "$SHADER_FILE"
     fi
+    echo "}" >> "$SHADER_FILE"
   else
     echo "Invalid area format, use x:y:w:h" >&2; exit 1
   fi
 else
-  echo "  fragColor = pixel;" >> /dev/shm/hyproled_shader.glsl
+  echo "  fragColor = pixel;" >> "$SHADER_FILE"
+  echo "}" >> "$SHADER_FILE"
 fi
 
-echo "}" >> /dev/shm/hyproled_shader.glsl
 
-hyprctl keyword decoration:screen_shader /dev/shm/hyproled_shader.glsl
+hyprctl keyword decoration:screen_shader "$SHADER_FILE"
